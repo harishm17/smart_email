@@ -2,6 +2,7 @@
 
 > Multi-agent system for automated email drafting and calendar management with 100% PII protection
 
+[![Status](https://img.shields.io/badge/Status-Active_Development-orange?style=flat)]()
 [![Python](https://img.shields.io/badge/Python-3.11-blue?style=flat&logo=python)](https://www.python.org/)
 [![LangChain](https://img.shields.io/badge/LangChain-0.1-green?style=flat)](https://langchain.com/)
 [![Gemini](https://img.shields.io/badge/Gemini-1.5_Pro-purple?style=flat)](https://ai.google.dev/)
@@ -268,26 +269,41 @@ GUARDRAILS_API_KEY=your_guardrails_key
 2. Create OAuth 2.0 credentials:
    - Application type: Desktop app
    - Download `credentials.json`
-   - Place in project root
+   - Place in `credentials/` directory
 
 3. First run will open browser for OAuth consent
 
 ### Run
 
+**Interactive Mode:**
 ```bash
-python main.py
+python main.py --interactive
+```
+
+**Single Request:**
+```bash
+python main.py --request "Reply to John's email about the project deadline"
+```
+
+**Auto-send (use with caution):**
+```bash
+python main.py --request "Schedule a meeting with team" --auto-send
 ```
 
 ### Example Usage
 
 ```python
-from smart_email import EmailAssistant
+from main import SmartEmailAssistant
 
-assistant = EmailAssistant()
+assistant = SmartEmailAssistant()
 
-# Example 1: Schedule meeting
-result = assistant.process("Schedule a team sync meeting next Tuesday at 3pm")
-# Output: Calendar event created, invitation email drafted and sent
+# Example 1: Draft an email
+result = assistant.process_request("Reply to John about the project meeting")
+# Output: Displays draft email with subject and body
+
+# Example 2: Search emails
+context = assistant.retriever.retrieve_context("from:john@example.com subject:project")
+# Output: Returns relevant email context
 
 # Example 2: Draft reply
 result = assistant.process("Reply to John's email about project deadline")
