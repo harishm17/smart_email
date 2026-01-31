@@ -405,14 +405,4 @@ MS Computer Science @ UT Dallas | Software Engineer @ Purgo AI
 
 ---
 
-## Acknowledgments
-
-Built with:
-- [LangChain](https://langchain.com) - Agent orchestration framework
-- PII validator - regex-based detection + redaction
-- [Google Gemini](https://ai.google.dev/) - Large language model
-- [Google Workspace APIs](https://developers.google.com/workspace) - Email and calendar integration
-
----
-
 *Building intelligent systems that respect privacy while enhancing productivity*
