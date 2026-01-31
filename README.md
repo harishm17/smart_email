@@ -36,15 +36,15 @@ An intelligent multi-agent system that:
 - PII validator + redaction pipeline (`validators/pii_validator.py`)
 - Structured outputs with Pydantic to reduce malformed actions
 
-## ✨ Features
+## Features
 
 - **Multi-Agent Orchestration:** LangChain-powered agent collaboration with ReAct pattern
 - **PII Protection:** Automated redaction of SSNs, credit cards, API keys, phone numbers
 - **Smart Email Drafting:** Context-aware response generation from email threads
 - **Calendar Integration:** Google Calendar event creation and updates
-- 👥 **Contact Management:** Workspace directory search and retrieval
+- **Contact Management:** Workspace directory search and retrieval
 - **Structured Outputs:** Validated JSON responses via Pydantic models
-- 🔗 **OAuth 2.0 Authentication:** Secure token management for Google Workspace
+- **OAuth 2.0 Authentication:** Secure token management for Google Workspace
 
 ---
 
@@ -340,7 +340,7 @@ result = assistant.process("Send a follow-up to Sarah about the proposal")
 
 ---
 
-## 🔮 Future Enhancements
+## Future Enhancements
 
 - [ ] Microsoft Outlook support via Graph API
 - [ ] Sentiment analysis for tone matching
@@ -353,7 +353,7 @@ result = assistant.process("Send a follow-up to Sarah about the proposal")
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 smart_email/
@@ -379,7 +379,7 @@ smart_email/
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Run unit tests
@@ -388,13 +388,13 @@ pytest tests/ -v
 
 ---
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-## 👤 Author
+## Author
 
 **Harish Manoharan**
 MS Computer Science @ UT Dallas | Software Engineer @ Purgo AI
