@@ -2,12 +2,6 @@
 
 > Multi-agent system for drafting emails and scheduling actions with PII-aware guardrails
 
-[![Status](https://img.shields.io/badge/Status-Active_Development-orange?style=flat)]()
-[![Python](https://img.shields.io/badge/Python-3.11-blue?style=flat&logo=python)](https://www.python.org/)
-[![LangChain](https://img.shields.io/badge/LangChain-0.1-green?style=flat)](https://langchain.com/)
-[![Gemini](https://img.shields.io/badge/Gemini-1.5_Pro-purple?style=flat)](https://ai.google.dev/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
 [Overview](#-overview) • [Privacy Model](#-privacy-model) • [Architecture](#-architecture) • [Evaluation](#-evaluation--tests) • [Setup](#-quick-start)
 
 ---
@@ -217,6 +211,32 @@ class CalendarEvent(BaseModel):
 # LLM extracts structured data
 event = gemini_llm.with_structured_output(CalendarEvent).invoke(user_request)
 ```
+
+---
+
+## 🎬 Demo
+
+### 📹 Video Walkthrough
+
+> **Coming Soon**: 60-second demo showing email drafting, PII redaction, and calendar scheduling
+
+### 📸 Screenshots
+
+**Email Drafting with Context**
+![Email Draft](./docs/screenshots/email-draft.png)
+*AI-generated email draft with context from previous conversations*
+
+**PII Detection & Redaction**
+![PII Redaction](./docs/screenshots/pii-redaction.png)
+*Automatic detection and redaction of sensitive information*
+
+**Calendar Event Creation**
+![Calendar](./docs/screenshots/calendar-event.png)
+*Natural language calendar scheduling*
+
+### 🚀 Try It Locally
+
+Follow the [Quick Start](#-quick-start) guide to run locally with your own Google Workspace account.
 
 ---
 
