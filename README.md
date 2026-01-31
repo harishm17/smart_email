@@ -6,7 +6,7 @@
 
 ---
 
-## 🎯 Overview
+## Overview
 
 Smart Email Assistant orchestrates **three specialized AI agents** to handle email communication and calendar tasks:
 - **Planner Agent:** Analyzes incoming requests and determines required actions
@@ -16,10 +16,10 @@ Smart Email Assistant orchestrates **three specialized AI agents** to handle ema
 **Safety Layer:** PII detection + redaction runs before drafts are sent, with a final validation gate.
 
 ### The Problem
-- 📧 Email management is time-consuming (5-10 minutes per response)
-- 📅 Calendar scheduling requires multiple back-and-forth exchanges
-- 🔒 Risk of accidentally leaking sensitive information (SSNs, API keys, credentials)
-- 🤝 Need to search through past conversations for context
+- Email management is time-consuming (5-10 minutes per response)
+- Calendar scheduling requires multiple back-and-forth exchanges
+- Risk of accidentally leaking sensitive information (SSNs, API keys, credentials)
+- Need to search through past conversations for context
 
 ### The Solution
 An intelligent multi-agent system that:
@@ -30,7 +30,7 @@ An intelligent multi-agent system that:
 
 ---
 
-## ✅ Proof
+## Proof
 
 - OAuth 2.0 Gmail/Calendar integration with token refresh
 - PII validator + redaction pipeline (`validators/pii_validator.py`)
@@ -38,23 +38,23 @@ An intelligent multi-agent system that:
 
 ## ✨ Features
 
-- 🤖 **Multi-Agent Orchestration:** LangChain-powered agent collaboration with ReAct pattern
-- 🔒 **PII Protection:** Automated redaction of SSNs, credit cards, API keys, phone numbers
-- 📧 **Smart Email Drafting:** Context-aware response generation from email threads
-- 📅 **Calendar Integration:** Google Calendar event creation and updates
+- **Multi-Agent Orchestration:** LangChain-powered agent collaboration with ReAct pattern
+- **PII Protection:** Automated redaction of SSNs, credit cards, API keys, phone numbers
+- **Smart Email Drafting:** Context-aware response generation from email threads
+- **Calendar Integration:** Google Calendar event creation and updates
 - 👥 **Contact Management:** Workspace directory search and retrieval
-- ✅ **Structured Outputs:** Validated JSON responses via Pydantic models
+- **Structured Outputs:** Validated JSON responses via Pydantic models
 - 🔗 **OAuth 2.0 Authentication:** Secure token management for Google Workspace
 
 ---
 
-## 🔐 Privacy Model
+## Privacy Model
 
 - **Pre-LLM scrub:** Inputs are sanitized before they reach the model (configurable).
 - **Post-LLM guard:** Drafts are validated; detected PII is redacted and flagged.
 - **Data boundaries:** OAuth tokens stay local; only the minimum context needed is sent to the model.
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────┐
@@ -120,7 +120,7 @@ An intelligent multi-agent system that:
 
 ---
 
-## 🚧 Technical Challenges & Solutions
+## Technical Challenges & Solutions
 
 ### Challenge 1: Context Window Management
 **Problem:** Email threads can exceed LLM context limits (200K+ tokens for long conversations).
@@ -214,13 +214,13 @@ event = gemini_llm.with_structured_output(CalendarEvent).invoke(user_request)
 
 ---
 
-## 🎬 Demo
+## Demo
 
-### 📹 Video Walkthrough
+### Video Walkthrough
 
 > **Coming Soon**: 60-second demo showing email drafting, PII redaction, and calendar scheduling
 
-### 📸 Screenshots
+### Screenshots
 
 **Email Drafting with Context**
 ![Email Draft](./docs/screenshots/email-draft.png)
@@ -234,13 +234,13 @@ event = gemini_llm.with_structured_output(CalendarEvent).invoke(user_request)
 ![Calendar](./docs/screenshots/calendar-event.png)
 *Natural language calendar scheduling*
 
-### 🚀 Try It Locally
+### Try It Locally
 
 Follow the [Quick Start](#-quick-start) guide to run locally with your own Google Workspace account.
 
 ---
 
-## ✅ Evaluation & Tests
+## Evaluation & Tests
 
 **Automated checks**
 - `tests/test_pii_validator.py` validates detection + redaction behavior
@@ -254,7 +254,7 @@ Follow the [Quick Start](#-quick-start) guide to run locally with your own Googl
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.11+
@@ -405,7 +405,7 @@ MS Computer Science @ UT Dallas | Software Engineer @ Purgo AI
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 Built with:
 - [LangChain](https://langchain.com) - Agent orchestration framework
