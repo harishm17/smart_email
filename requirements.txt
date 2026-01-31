@@ -10,7 +10,6 @@ google-auth-oauthlib==1.2.0
 google-api-python-client==2.119.0
 
 # Safety & Validation
-guardrails-ai==0.4.5
 pydantic==2.6.1
 
 # Vector Store & Embeddings

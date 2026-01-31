@@ -107,6 +107,12 @@ Context from Previous Emails:
         recipients = ', '.join(plan.get('recipients', ['recipient']))
         key_points = '\n- '.join(plan.get('key_points', [user_request]))
 
+        # Pre-LLM PII scrubbing (configurable)
+        if self.pii_validator.enabled:
+            user_request = self.pii_validator.sanitize(user_request)
+            key_points = self.pii_validator.sanitize(key_points)
+            context_section = self.pii_validator.sanitize(context_section)
+
         # Generate draft
         chain = self.prompt | self.llm | self.parser
 
