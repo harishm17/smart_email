@@ -9,6 +9,7 @@ from langchain.prompts import ChatPromptTemplate
 from langchain.output_parsers import PydanticOutputParser
 
 from config import GEMINI_API_KEY, LLM_MODEL, LLM_TEMPERATURE
+from validators.pii_validator import get_pii_validator
 
 
 class EmailPlan(BaseModel):
@@ -37,6 +38,7 @@ class PlannerAgent:
         )
 
         self.parser = PydanticOutputParser(pydantic_object=EmailPlan)
+        self.pii_validator = get_pii_validator()
 
         self.prompt = ChatPromptTemplate.from_template(
             """You are an intelligent email planning assistant. Analyze the user's request and create a structured plan.
@@ -76,8 +78,12 @@ Plan:"""
         chain = self.prompt | self.llm | self.parser
 
         try:
+            safe_request = (
+                self.pii_validator.sanitize(user_request)
+                if self.pii_validator.enabled else user_request
+            )
             result = chain.invoke({
-                "request": user_request,
+                "request": safe_request,
                 "format_instructions": self.parser.get_format_instructions()
             })
             return result

@@ -1,26 +1,25 @@
-# Smart Email Assistant
+# Smart Email Assistant — Privacy-First Email Drafting
 
-> Multi-agent system for automated email drafting and calendar management with 100% PII protection
+> Multi-agent system for drafting emails and scheduling actions with PII-aware guardrails
 
 [![Status](https://img.shields.io/badge/Status-Active_Development-orange?style=flat)]()
 [![Python](https://img.shields.io/badge/Python-3.11-blue?style=flat&logo=python)](https://www.python.org/)
 [![LangChain](https://img.shields.io/badge/LangChain-0.1-green?style=flat)](https://langchain.com/)
 [![Gemini](https://img.shields.io/badge/Gemini-1.5_Pro-purple?style=flat)](https://ai.google.dev/)
-[![Guardrails AI](https://img.shields.io/badge/Guardrails_AI-Safety-red?style=flat)](https://guardrailsai.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[Overview](#-overview) • [Features](#-features) • [Architecture](#-architecture) • [Challenges](#-technical-challenges--solutions) • [Results](#-results) • [Setup](#-quick-start)
+[Overview](#-overview) • [Privacy Model](#-privacy-model) • [Architecture](#-architecture) • [Evaluation](#-evaluation--tests) • [Setup](#-quick-start)
 
 ---
 
 ## 🎯 Overview
 
-Smart Email Assistant orchestrates **three specialized AI agents** to handle email communication and calendar management:
+Smart Email Assistant orchestrates **three specialized AI agents** to handle email communication and calendar tasks:
 - **Planner Agent:** Analyzes incoming requests and determines required actions
 - **Retriever Agent:** Searches email history and contacts for context
 - **Drafting Agent:** Generates context-aware responses with appropriate tone
 
-**Key Innovation:** Guardrails AI safety layer ensures **100% PII protection** through LLM judge validation before any email is sent.
+**Safety Layer:** PII detection + redaction runs before drafts are sent, with a final validation gate.
 
 ### The Problem
 - 📧 Email management is time-consuming (5-10 minutes per response)
@@ -32,10 +31,16 @@ Smart Email Assistant orchestrates **three specialized AI agents** to handle ema
 An intelligent multi-agent system that:
 - Automatically drafts context-aware email responses
 - Manages calendar events through natural language
-- Validates all outputs to prevent PII leakage
+- Validates outputs and redacts detected PII
 - Integrates seamlessly with Google Workspace
 
 ---
+
+## ✅ Proof
+
+- OAuth 2.0 Gmail/Calendar integration with token refresh
+- PII validator + redaction pipeline (`validators/pii_validator.py`)
+- Structured outputs with Pydantic to reduce malformed actions
 
 ## ✨ Features
 
@@ -49,6 +54,12 @@ An intelligent multi-agent system that:
 
 ---
 
+## 🔐 Privacy Model
+
+- **Pre-LLM scrub:** Inputs are sanitized before they reach the model (configurable).
+- **Post-LLM guard:** Drafts are validated; detected PII is redacted and flagged.
+- **Data boundaries:** OAuth tokens stay local; only the minimum context needed is sent to the model.
+
 ## 🏗️ Architecture
 
 ```
@@ -56,6 +67,11 @@ An intelligent multi-agent system that:
 │    User     │
 │   Request   │
 └──────┬──────┘
+       │
+       ▼
+┌─────────────────────┐
+│  PII Scrub (pre-LLM)│
+└──────┬──────────────┘
        │
        ▼
 ┌─────────────────────────────────────────────────┐
@@ -81,8 +97,8 @@ An intelligent multi-agent system that:
              │
              ▼
     ┌──────────────────┐
-    │  Guardrails AI   │
-    │  (PII Validator) │
+    │  PII Validator   │
+    │ (redaction gate) │
     └────────┬─────────┘
              │
              ▼
@@ -95,7 +111,7 @@ An intelligent multi-agent system that:
 **Tech Stack:**
 - **AI Framework:** LangChain 0.1.x for agent orchestration
 - **LLM:** Google Gemini 1.5 Pro for reasoning and generation
-- **Safety Layer:** Guardrails AI with LLM judge validation
+- **Safety Layer:** PII detection + redaction with a send/no‑send gate
 - **APIs:** Google Workspace (Gmail, Calendar, Contacts via REST)
 - **Authentication:** OAuth 2.0 with refresh token flow
 
@@ -105,7 +121,7 @@ An intelligent multi-agent system that:
 3. Retriever Agent fetches relevant context (John's email from contacts)
 4. Calendar Agent creates event via Google Calendar API
 5. Drafting Agent generates invitation email
-6. Guardrails AI validates output for PII leakage
+6. PII validator checks drafts before sending
 7. Email sent via Gmail API
 
 ---
@@ -118,7 +134,7 @@ An intelligent multi-agent system that:
 **Solution:**
 - Implemented semantic chunking of email history with relevance scoring
 - Only top-5 most relevant messages sent to drafting agent based on cosine similarity
-- Reduced context usage by 85% while maintaining drafting accuracy
+- Reduced context usage while maintaining drafting accuracy
 
 **Technical Details:**
 ```python
@@ -137,22 +153,19 @@ relevant_emails = vectorstore.similarity_search(query, k=5)
 **Problem:** LLMs can inadvertently leak sensitive information or hallucinate contact details.
 
 **Solution:**
-- Integrated Guardrails AI with LLM-as-judge validation
-- Validates every output against PII patterns: SSN regex, credit card Luhn algorithm, API key detection
-- All detected PII auto-redacted with `[REDACTED]` placeholder
-- **Result:** Zero PII leaks in 500+ test emails
+- Pre-LLM scrubbing of user input and context to limit exposure
+- Guardrails-based validation of drafts for PII patterns (SSN, credit card, API keys)
+- Detected PII is redacted before sending
 
 **Technical Details:**
 ```python
-from guardrails import Guard
-from guardrails.validators import PIIDetector
+from validators.pii_validator import get_pii_validator
 
-guard = Guard.from_string(
-    validators=[PIIDetector(pii_entities=["SSN", "CREDIT_CARD", "API_KEY"])],
-    description="Detect and redact PII from email drafts"
-)
+validator = get_pii_validator()
+safe_request = validator.sanitize(user_request)
 
-validated_output = guard.validate(draft_email)
+draft = drafter.draft(safe_request, plan, context)
+pii_check = validator.validate(draft.body)
 ```
 
 ---
@@ -164,7 +177,6 @@ validated_output = guard.validate(draft_email)
 - LangChain's ReAct agent pattern allows "thinking" and retry logic
 - State management via LangGraph ensures proper execution order
 - Exponential backoff for API rate limits
-- **Result:** 92% success rate for multi-step workflows
 
 **Technical Details:**
 ```python
@@ -190,7 +202,6 @@ result = agent.invoke({"input": user_request})
 - Built structured output extraction using Pydantic models
 - Gemini 1.5 Pro with function calling to parse dates/times
 - Timezone handling with pytz library
-- **Result:** 94% accuracy in date/time parsing
 
 **Example:**
 ```python
@@ -209,24 +220,17 @@ event = gemini_llm.with_structured_output(CalendarEvent).invoke(user_request)
 
 ---
 
-## 📊 Results
+## ✅ Evaluation & Tests
 
-| Metric | Value | Impact |
-|--------|-------|--------|
-| **PII Protection** | 100% | Zero sensitive data leaks in 500+ test emails |
-| **Speed Improvement** | 75% faster | Email drafting reduced from 5 minutes to 75 seconds |
-| **Calendar Success Rate** | 92% | Multi-step workflows complete successfully |
-| **Context Efficiency** | 85% reduction | Token usage optimized via semantic search |
-| **Date Parsing Accuracy** | 94% | Natural language to ISO datetime conversion |
+**Automated checks**
+- `tests/test_pii_validator.py` validates detection + redaction behavior
 
-**Performance Benchmarks:**
-```
-Average response times:
-├─ Simple draft (no context search): 8-12 seconds
-├─ Draft with context retrieval: 15-20 seconds
-├─ Calendar event creation: 5-8 seconds
-└─ Full workflow (search + draft + schedule): 25-30 seconds
-```
+**Manual eval checklist**
+- Draft quality (tone, clarity, task completion)
+- PII safety (no leakage in output)
+- Calendar accuracy (timezones, intent handling)
+
+> Keep a small fixed set of test emails to compare outputs across model/prompt changes.
 
 ---
 
@@ -343,7 +347,9 @@ smart_email/
 │   ├── calendar_tools.py     # Calendar API wrapper
 │   └── contacts_tools.py     # Contacts API wrapper
 ├── validators/
-│   └── pii_validator.py      # Guardrails AI integration
+│   └── pii_validator.py      # PII detection + redaction
+├── tests/
+│   └── test_pii_validator.py # Unit tests for PII guard
 ├── utils/
 │   ├── auth.py               # OAuth 2.0 management
 │   └── datetime_parser.py    # Natural language date parsing
@@ -357,13 +363,7 @@ smart_email/
 
 ```bash
 # Run unit tests
-pytest tests/
-
-# Run integration tests (requires API credentials)
-pytest tests/integration/ --slow
-
-# Test PII detection
-pytest tests/test_pii_validator.py -v
+pytest tests/ -v
 ```
 
 ---
@@ -389,7 +389,7 @@ MS Computer Science @ UT Dallas | Software Engineer @ Purgo AI
 
 Built with:
 - [LangChain](https://langchain.com) - Agent orchestration framework
-- [Guardrails AI](https://guardrailsai.com) - PII protection and validation
+- PII validator - regex-based detection + redaction
 - [Google Gemini](https://ai.google.dev/) - Large language model
 - [Google Workspace APIs](https://developers.google.com/workspace) - Email and calendar integration
 
