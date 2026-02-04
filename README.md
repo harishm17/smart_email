@@ -86,7 +86,7 @@ An intelligent multi-agent system that:
               ▼
     ┌──────────────────┐
     │  Drafting Agent  │
-    │   (Gemini 1.5)   │
+    │    (Gemini 3)    │
     └────────┬─────────┘
              │
              ▼
@@ -103,8 +103,8 @@ An intelligent multi-agent system that:
 ```
 
 **Tech Stack:**
-- **AI Framework:** LangChain 0.1.x for agent orchestration
-- **LLM:** Google Gemini 1.5 Pro for reasoning and generation
+- **AI Framework:** LangChain for agent orchestration
+- **LLM:** Google Gemini 3 for reasoning and generation
 - **Safety Layer:** PII detection + redaction with a send/no‑send gate
 - **APIs:** Google Workspace (Gmail, Calendar, Contacts via REST)
 - **Authentication:** OAuth 2.0 with refresh token flow
@@ -194,7 +194,7 @@ result = agent.invoke({"input": user_request})
 
 **Solution:**
 - Built structured output extraction using Pydantic models
-- Gemini 1.5 Pro with function calling to parse dates/times
+- Gemini 3 with function calling to parse dates/times
 - Timezone handling with pytz library
 
 **Example:**
