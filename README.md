@@ -1,398 +1,123 @@
-# Smart Email Assistant — Privacy-First Email Drafting
+# Smart Email Assistant
 
-> Multi-agent system for drafting emails and scheduling actions with PII-aware guardrails
+A command-line tool that drafts emails from a natural-language request, using Gmail history for context and a regex-based PII scrub around the LLM calls. It is draft-only by default.
 
-[Overview](#-overview) • [Privacy Model](#-privacy-model) • [Architecture](#-architecture) • [Evaluation](#-evaluation--tests) • [Setup](#-quick-start)
+## How it works
 
----
-
-## Overview
-
-Smart Email Assistant orchestrates **three specialized AI agents** to handle email communication and calendar tasks:
-- **Planner Agent:** Analyzes incoming requests and determines required actions
-- **Retriever Agent:** Searches email history and contacts for context
-- **Drafting Agent:** Generates context-aware responses with appropriate tone
-
-**Safety Layer:** PII detection + redaction runs before drafts are sent, with a final validation gate.
-
-### The Problem
-- Email management is time-consuming (5-10 minutes per response)
-- Calendar scheduling requires multiple back-and-forth exchanges
-- Risk of accidentally leaking sensitive information (SSNs, API keys, credentials)
-- Need to search through past conversations for context
-
-### The Solution
-An intelligent multi-agent system that:
-- Automatically drafts context-aware email responses
-- Manages calendar events through natural language
-- Validates outputs and redacts detected PII
-- Integrates seamlessly with Google Workspace
-
----
-
-## Proof
-
-- OAuth 2.0 Gmail/Calendar integration with token refresh
-- PII validator + redaction pipeline (`validators/pii_validator.py`)
-- Structured outputs with Pydantic to reduce malformed actions
-
-## Features
-
-- **Multi-Agent Orchestration:** LangChain-powered agent collaboration with ReAct pattern
-- **PII Protection:** Automated redaction of SSNs, credit cards, API keys, phone numbers
-- **Smart Email Drafting:** Context-aware response generation from email threads
-- **Calendar Integration:** Google Calendar event creation and updates
-- **Contact Management:** Workspace directory search and retrieval
-- **Structured Outputs:** Validated JSON responses via Pydantic models
-- **OAuth 2.0 Authentication:** Secure token management for Google Workspace
-
----
-
-## Privacy Model
-
-- **Pre-LLM scrub:** Inputs are sanitized before they reach the model (configurable).
-- **Post-LLM guard:** Drafts are validated; detected PII is redacted and flagged.
-- **Data boundaries:** OAuth tokens stay local; only the minimum context needed is sent to the model.
-
-## Architecture
+The code is a sequential pipeline in `main.py` (`SmartEmailAssistant.process_request`), not a multi-agent system:
 
 ```
-┌─────────────┐
-│    User     │
-│   Request   │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────────┐
-│  PII Scrub (pre-LLM)│
-└──────┬──────────────┘
-       │
-       ▼
-┌─────────────────────────────────────────────────┐
-│           Planner Agent (LangChain)             │
-│  "What actions needed? Search, draft, schedule?" │
-└──────┬──────────────────────────────────────────┘
-       │
-   ┌───┴────┬──────────┬────────────┐
-   │        │          │            │
-   ▼        ▼          ▼            ▼
-┌──────┐ ┌──────┐ ┌────────┐ ┌──────────┐
-│Gmail │ │Calendar│ │Contacts│ │Retriever │
-│ API  │ │  API   │ │  API   │ │  Agent   │
-└──┬───┘ └───┬────┘ └───┬────┘ └────┬─────┘
-   │         │          │          │
-   └─────────┴──────────┴──────────┘
-              │
-              ▼
-    ┌──────────────────┐
-    │  Drafting Agent  │
-    │    (Gemini 3)    │
-    └────────┬─────────┘
-             │
-             ▼
-    ┌──────────────────┐
-    │  PII Validator   │
-    │ (redaction gate) │
-    └────────┬─────────┘
-             │
-             ▼
-    ┌──────────────────┐
-    │   Send Email     │
-    │  (Gmail API)     │
-    └──────────────────┘
+user request
+    |
+    v
+Planner      one Gemini call (LangChain) -> EmailPlan (Pydantic)
+    |
+    v
+Retriever    Gmail search using plan.context_query (no LLM call), only if the plan asks for context
+    |
+    v
+Drafter      one Gemini call (LangChain) -> EmailDraft (Pydantic), then a PII check on the draft body
+    |
+    v
+Display the draft; send via Gmail only if --auto-send is passed and the draft passed the PII check
 ```
 
-**Tech Stack:**
-- **AI Framework:** LangChain for agent orchestration
-- **LLM:** Google Gemini 3 for reasoning and generation
-- **Safety Layer:** PII detection + redaction with a send/no‑send gate
-- **APIs:** Google Workspace (Gmail, Calendar, Contacts via REST)
-- **Authentication:** OAuth 2.0 with refresh token flow
+- **Planner** (`agents/planner.py`): `prompt | ChatGoogleGenerativeAI | PydanticOutputParser` produces an `EmailPlan` (intent, tone, recipients, key points, optional context query). If the call fails, it falls back to a basic "compose" plan.
+- **Retriever** (`agents/retriever.py`): runs a Gmail search through `tools/gmail_tools.py` and builds a short text summary (sender, subject, snippet) of the top results. It uses Gmail's own search syntax; there is no embedding or vector search.
+- **Drafter** (`agents/drafter.py`): same chain pattern, producing an `EmailDraft` with subject, body, and tone. The PII validator is run on the draft body; if it finds PII, the body is redacted and the draft is marked not safe to send.
+- **Sending**: `tools/gmail_tools.py` calls the Gmail API. `--auto-send` sends to the first recipient in the plan, without a confirmation prompt, and only when the draft is marked safe.
+- **Model**: Gemini through `langchain-google-genai`. The model name comes from `LLM_MODEL` (default `gemini-1.5-pro` in `config.py`) and temperature from `LLM_TEMPERATURE` (default 0.7).
 
-**Data Flow:**
-1. User inputs natural language request (e.g., "Schedule meeting with John Tuesday 2pm")
-2. Planner Agent determines actions needed (search contact, create calendar event, draft email)
-3. Retriever Agent fetches relevant context (John's email from contacts)
-4. Calendar Agent creates event via Google Calendar API
-5. Drafting Agent generates invitation email
-6. PII validator checks drafts before sending
-7. Email sent via Gmail API
+## Privacy model
 
----
+- **Pre-LLM scrub**: the planner and drafter run regex redaction over the request, key points, and retrieved email context before building the prompt. This can be turned off with `ENABLE_PII_VALIDATION=false`.
+- **Post-LLM check**: the draft body is checked with the same patterns. A draft with matches is redacted, flagged, and blocked from auto-send.
+- **Patterns** (`validators/pii_validator.py`): email addresses, phone numbers, US SSNs, 16-digit card numbers, IPv4 addresses, and simple street addresses. This is pattern matching only; it does not detect API keys or other secrets.
+- **Local state**: OAuth tokens are stored in `credentials/token.json` on your machine. Request text and retrieved email content (after the scrub) are sent to the Gemini API.
+- **Draft-only by default**: without `--auto-send`, the draft is only printed to the terminal.
 
-## Technical Challenges & Solutions
+## Setup
 
-### Challenge 1: Context Window Management
-**Problem:** Email threads can exceed LLM context limits (200K+ tokens for long conversations).
-
-**Solution:**
-- Implemented semantic chunking of email history with relevance scoring
-- Only top-5 most relevant messages sent to drafting agent based on cosine similarity
-- Reduced context usage while maintaining drafting accuracy
-
-**Technical Details:**
-```python
-# Semantic search for relevant emails
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import Chroma
-
-embeddings = OpenAIEmbeddings()
-vectorstore = Chroma.from_documents(email_history, embeddings)
-relevant_emails = vectorstore.similarity_search(query, k=5)
-```
-
----
-
-### Challenge 2: PII Protection at Scale
-**Problem:** LLMs can inadvertently leak sensitive information or hallucinate contact details.
-
-**Solution:**
-- Pre-LLM scrubbing of user input and context to limit exposure
-- Guardrails-based validation of drafts for PII patterns (SSN, credit card, API keys)
-- Detected PII is redacted before sending
-
-**Technical Details:**
-```python
-from validators.pii_validator import get_pii_validator
-
-validator = get_pii_validator()
-safe_request = validator.sanitize(user_request)
-
-draft = drafter.draft(safe_request, plan, context)
-pii_check = validator.validate(draft.body)
-```
-
----
-
-### Challenge 3: Multi-Step Orchestration Reliability
-**Problem:** Complex tasks require sequential API calls (search → create → draft). Failure at any step breaks workflow.
-
-**Solution:**
-- LangChain's ReAct agent pattern allows "thinking" and retry logic
-- State management via LangGraph ensures proper execution order
-- Exponential backoff for API rate limits
-
-**Technical Details:**
-```python
-from langchain.agents import create_react_agent
-from langchain.tools import Tool
-
-tools = [
-    Tool(name="search_contacts", func=search_contacts_func),
-    Tool(name="create_calendar_event", func=create_event_func),
-    Tool(name="draft_email", func=draft_email_func)
-]
-
-agent = create_react_agent(llm=gemini_llm, tools=tools)
-result = agent.invoke({"input": user_request})
-```
-
----
-
-### Challenge 4: Natural Language to API Parameter Mapping
-**Problem:** User says "next Tuesday at 3pm" but API needs ISO 8601 datetime.
-
-**Solution:**
-- Built structured output extraction using Pydantic models
-- Gemini 3 with function calling to parse dates/times
-- Timezone handling with pytz library
-
-**Example:**
-```python
-from pydantic import BaseModel
-from datetime import datetime
-
-class CalendarEvent(BaseModel):
-    summary: str
-    start_datetime: datetime
-    end_datetime: datetime
-    attendees: list[str]
-
-# LLM extracts structured data
-event = gemini_llm.with_structured_output(CalendarEvent).invoke(user_request)
-```
-
----
-
-## Demo
-
-### Video Walkthrough
-
-> **Coming Soon**: 60-second demo showing email drafting, PII redaction, and calendar scheduling
-
-### Screenshots
-
-**Email Drafting with Context**
-![Email Draft](./docs/screenshots/email-draft.png)
-*AI-generated email draft with context from previous conversations*
-
-**PII Detection & Redaction**
-![PII Redaction](./docs/screenshots/pii-redaction.png)
-*Automatic detection and redaction of sensitive information*
-
-**Calendar Event Creation**
-![Calendar](./docs/screenshots/calendar-event.png)
-*Natural language calendar scheduling*
-
-### Try It Locally
-
-Follow the [Quick Start](#-quick-start) guide to run locally with your own Google Workspace account.
-
----
-
-## Evaluation & Tests
-
-**Automated checks**
-- `tests/test_pii_validator.py` validates detection + redaction behavior
-
-**Manual eval checklist**
-- Draft quality (tone, clarity, task completion)
-- PII safety (no leakage in output)
-- Calendar accuracy (timezones, intent handling)
-
-> Keep a small fixed set of test emails to compare outputs across model/prompt changes.
-
----
-
-## Quick Start
-
-### Prerequisites
-- Python 3.11+
-- Google Cloud Project with Gmail + Calendar + Contacts APIs enabled
-- Gemini API key
-
-### Installation
+Requirements: Python 3.11+, a Google Cloud project with the Gmail API enabled, and a Gemini API key.
 
 ```bash
 git clone https://github.com/harishm17/smart_email.git
 cd smart_email
-pip install -r requirements.txt
-```
-
-### Configuration
-
-```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt   # see the note on pins below
 cp .env.example .env
 ```
 
-Edit `.env` with your credentials:
+Fill in `.env` (variable names as in `.env.example`):
+
 ```env
-GOOGLE_OAUTH_CLIENT_ID=your_client_id
-GOOGLE_OAUTH_CLIENT_SECRET=your_client_secret
-GEMINI_API_KEY=your_gemini_key
-GUARDRAILS_API_KEY=your_guardrails_key
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GEMINI_API_KEY=...
 ```
 
-### Google Cloud Setup
+Create an OAuth client (application type: Desktop app), download it as `credentials.json`, and place it in `credentials/`. The first run opens a browser for consent.
 
-1. Enable APIs in Google Cloud Console:
-   - Gmail API
-   - Google Calendar API
-   - People API (Contacts)
+**Dependency pins**: the pins in `requirements.txt` do not currently resolve together. `langchain-openai==0.1.7` needs `openai>=1.24`, but `openai==1.12.0` is pinned, and `pytest==8.0.0` conflicts with `pytest-asyncio==0.23.4`. Several listed packages (`openai`, `langchain-openai`, `chromadb`, `tenacity`) are not imported by the code. To install, relax or drop those pins.
 
-2. Create OAuth 2.0 credentials:
-   - Application type: Desktop app
-   - Download `credentials.json`
-   - Place in `credentials/` directory
+## Usage
 
-3. First run will open browser for OAuth consent
-
-### Run
-
-**Interactive Mode:**
 ```bash
+# Interactive mode: type requests, or 'search <query>', 'recent', 'quit'
 python main.py --interactive
-```
 
-**Single Request:**
-```bash
+# Single request, draft only
 python main.py --request "Reply to John's email about the project deadline"
+
+# Send the draft if it passes the PII check (no confirmation prompt)
+python main.py --request "Send a follow-up to sarah@example.com about the proposal" --auto-send
 ```
 
-**Auto-send (use with caution):**
-```bash
-python main.py --request "Schedule a meeting with team" --auto-send
-```
-
-### Example Usage
-
-```python
-from main import SmartEmailAssistant
-
-assistant = SmartEmailAssistant()
-
-# Example 1: Draft an email
-result = assistant.process_request("Reply to John about the project meeting")
-# Output: Displays draft email with subject and body
-
-# Example 2: Search emails
-context = assistant.retriever.retrieve_context("from:john@example.com subject:project")
-# Output: Returns relevant email context
-
-# Example 2: Draft reply
-result = assistant.process("Reply to John's email about project deadline")
-# Output: Context-aware email draft based on previous conversation
-
-# Example 3: Search and respond
-result = assistant.process("Send a follow-up to Sarah about the proposal")
-# Output: Searches email history, drafts appropriate follow-up
-```
-
----
-
-## Future Enhancements
-
-- [ ] Microsoft Outlook support via Graph API
-- [ ] Sentiment analysis for tone matching
-- [ ] Multi-language support (Spanish, French, German)
-- [ ] Slack integration for notifications
-- [ ] Email template library
-- [ ] Meeting notes summarization
-- [ ] Automated follow-up reminders
-- [ ] Email classification and prioritization
-
----
-
-## Project Structure
-
-```
-smart_email/
-├── main.py                    # Application entry point
-├── agents/
-│   ├── planner.py            # Planner agent (action determination)
-│   ├── retriever.py          # Retriever agent (context search)
-│   └── drafter.py            # Drafting agent (email generation)
-├── tools/
-│   ├── gmail_tools.py        # Gmail API wrapper
-│   ├── calendar_tools.py     # Calendar API wrapper
-│   └── contacts_tools.py     # Contacts API wrapper
-├── validators/
-│   └── pii_validator.py      # PII detection + redaction
-├── tests/
-│   └── test_pii_validator.py # Unit tests for PII guard
-├── utils/
-│   ├── auth.py               # OAuth 2.0 management
-│   └── datetime_parser.py    # Natural language date parsing
-├── requirements.txt
-└── README.md
-```
-
----
-
-## Testing
+## Tests
 
 ```bash
-# Run unit tests
 pytest tests/ -v
 ```
 
----
+There are 60 tests in three files:
+- `tests/test_pii_validator.py`: 3 tests for PII detection and redaction
+- `tests/test_planner_agent.py`: 22 tests for the planner, with the LLM mocked
+- `tests/test_datetime_parser.py`: 35 tests for `utils/datetime_parser.py`, a helper the application does not currently import
+
+With the pins relaxed so the dependencies install (Python 3.11), a recent run gave 56 passed and 4 failed (phone sanitization, one planner fallback test with an incorrect mock, and two datetime parser tests). There are no tests for the drafter, retriever, Gmail tools, or `main.py`, and no evaluation of draft quality. CI (`.github/workflows/ci.yml`) installs from `requirements.txt`, so it cannot install until the pins are fixed.
+
+## Status and known gaps
+
+- **Calendar and contacts scopes are requested but unused.** `config.py` asks for the full Calendar and Contacts (read-only) scopes, and `utils/auth.py` can build those service objects, but no code calls them. Only Gmail is used. The scopes should be reduced to what is needed.
+- **Redaction strips recipient emails before planning.** The scrub replaces addresses with `[EMAIL_REDACTED]@domain` before the planner sees the request, so `plan.recipients` can come back redacted or empty, which breaks `--auto-send`.
+- **The phone regex misses some formats.** For example `(415) 555-1212` and international numbers are not matched, and the `phone` pattern can match digit groups like `123.456.7890`.
+- **Errors fall back silently.** If an LLM call fails, the planner and drafter return a basic fallback and print the error. The drafter fallback is marked safe, and a Gmail API error in search returns no results.
+- **Email content is untrusted input.** Retrieved snippets go into the prompt unfiltered, and there is no prompt-injection defense or recipient allow-list for `--auto-send`.
+
+## Project structure
+
+```
+smart_email/
+├── main.py                    # CLI entry point and pipeline
+├── config.py                  # Environment settings
+├── agents/
+│   ├── planner.py             # Request -> EmailPlan (one LLM call)
+│   ├── retriever.py           # Gmail search for context (no LLM call)
+│   └── drafter.py             # Plan + context -> EmailDraft (one LLM call)
+├── tools/
+│   └── gmail_tools.py         # Gmail API wrapper
+├── validators/
+│   └── pii_validator.py       # Regex PII detection and redaction
+├── utils/
+│   ├── auth.py                # OAuth 2.0 flow and token refresh
+│   └── datetime_parser.py     # Date parsing helper (not used by the app)
+├── tests/
+└── requirements.txt
+```
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
-
----
+MIT License. See [LICENSE](LICENSE).
 
 ## Author
 
@@ -401,8 +126,4 @@ MS Computer Science @ UT Dallas | Software Engineer @ Purgo AI
 
 - Portfolio: [harishm17.github.io](https://harishm17.github.io)
 - LinkedIn: [linkedin.com/in/harishm17](https://linkedin.com/in/harishm17)
-- Email: harish.manoharan@utdallas.edu
-
----
-
-*Building intelligent systems that respect privacy while enhancing productivity*
+- Email: harish_manoharan@outlook.com
